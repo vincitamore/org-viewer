@@ -2,6 +2,30 @@
 
 A lightweight, personal document viewer for claude-org systems. Runs locally, accessible via Tailscale, installable as a PWA.
 
+![Dashboard](screenshots/org-viewer-dashboard.png)
+
+## Features
+
+- **TUI Aesthetic**: Terminal-inspired design with 6 color themes
+- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Graph
+- **Live Reload**: File changes update the UI in real-time
+- **PWA Support**: Install on mobile for native-like experience
+- **Keyboard Navigation**: vim-style `j/k` navigation, number keys for views
+- **Graph Visualization**: D3-powered document relationship graph
+- **Search**: Full-text search with fuzzy matching
+
+### Graph View
+
+Visualize connections between documents based on wikilinks and tags:
+
+![Graph View](screenshots/org-viewer-graph.png)
+
+### Tag Pages
+
+Auto-generated tag index pages group related documents:
+
+![Tag Page](screenshots/org-viewer-tag-page-example.png)
+
 ## Quick Start
 
 ```bash
@@ -34,16 +58,6 @@ org-viewer/
 │           └── lib/         # API client, theme, WebSocket
 └── src-tauri/        # Tauri native wrapper (optional)
 ```
-
-## Features
-
-- **TUI Aesthetic**: Terminal-inspired design with 6 color themes
-- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Graph
-- **Live Reload**: File changes update the UI in real-time
-- **PWA Support**: Install on mobile for native-like experience
-- **Keyboard Navigation**: vim-style `j/k` navigation, number keys for views
-- **Graph Visualization**: D3-powered document relationship graph
-- **Search**: Full-text search with Fuse.js
 
 ## API Endpoints
 
