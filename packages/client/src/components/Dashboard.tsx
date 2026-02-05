@@ -1,4 +1,5 @@
-import { type ServerStatus } from '../lib/api';
+import { useState, useEffect } from 'react';
+import { api, type ServerStatus } from '../lib/api';
 
 interface DashboardProps {
   status: ServerStatus;
@@ -6,7 +7,43 @@ interface DashboardProps {
   onRefresh: () => void;
 }
 
+function parseRecentChanges(content: string): string[] {
+  // Extract "## Recent Changes" section from current-state.md content
+  const match = content.match(/## Recent Changes\s*\n([\s\S]*?)(?=\n---|\n## |\Z)/);
+  if (!match) return [];
+
+  return match[1]
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.startsWith('- ') || line.startsWith('* '))
+    .map(line => line.replace(/^[-*]\s+/, ''))
+    .filter(Boolean)
+    .slice(0, 8); // Max 8 items
+}
+
 export default function Dashboard({ status, onSelectDocument, onRefresh }: DashboardProps) {
+  const [recentChanges, setRecentChanges] = useState<string[]>([]);
+  const [changesLastUpdated, setChangesLastUpdated] = useState<string>('');
+
+  useEffect(() => {
+    // Try to load context/current-state.md for Recent Changes
+    api.getFile('context/current-state.md')
+      .then(doc => {
+        const changes = parseRecentChanges(doc.content);
+        setRecentChanges(changes);
+
+        // Extract last updated line
+        const lastUpdated = doc.content.match(/\*Last updated:\s*(.+?)\*/);
+        if (lastUpdated) {
+          setChangesLastUpdated(lastUpdated[1]);
+        }
+      })
+      .catch(() => {
+        // File doesn't exist - graceful degradation
+        setRecentChanges([]);
+      });
+  }, [status]); // Re-fetch when status changes (on refresh)
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Stats */}
@@ -35,6 +72,44 @@ export default function Dashboard({ status, onSelectDocument, onRefresh }: Dashb
           color="#ff6b6b"
         />
       </div>
+
+      {/* Recent Changes from current-state.md */}
+      {recentChanges.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 style={{ color: 'var(--term-primary)' }} className="font-bold">
+              Recent Changes
+            </h2>
+            {changesLastUpdated && (
+              <span className="text-xs" style={{ color: 'var(--term-muted)' }}>
+                {changesLastUpdated}
+              </span>
+            )}
+          </div>
+          <div
+            className="border px-4 py-3 space-y-1"
+            style={{ borderColor: 'var(--term-border)' }}
+          >
+            {recentChanges.map((change, i) => (
+              <div
+                key={i}
+                className="text-sm"
+                style={{ color: 'var(--term-foreground)' }}
+              >
+                <span style={{ color: 'var(--term-muted)' }}>{'>'} </span>
+                {change}
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => onSelectDocument('context/current-state.md')}
+            className="text-xs mt-1"
+            style={{ color: 'var(--term-muted)' }}
+          >
+            View full state &rarr;
+          </button>
+        </section>
+      )}
 
       {/* Recent documents */}
       <section>

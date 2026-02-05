@@ -1110,7 +1110,33 @@ tauri-build = { version = "2.0", features = [] }
 
 ---
 
-## 10. Open Questions Resolved
+## 10. Dynamic State Integration
+
+### context/current-state.md
+
+The Dashboard reads `context/current-state.md` to surface a "Recent Changes" section. This file is the dynamic counterpart to CLAUDE.md — it tracks tasks, projects, inbox counts, and session changes.
+
+**How it works:**
+- Dashboard fetches `context/current-state.md` via `api.getFile()`
+- Parses the `## Recent Changes` section from the markdown content
+- Extracts bullet points and renders them as a card between Stats and Recent Activity
+- Gracefully falls back to hidden if the file doesn't exist
+- "View full state →" link navigates to the document
+
+**Why client-side parsing:** No new server endpoint needed. The file is already indexed and served by the existing `/api/files/:path` route. Parsing a few lines of markdown client-side is trivial.
+
+**Contract:** `context/current-state.md` should have:
+```markdown
+## Recent Changes
+- **Item**: Description of what changed
+- **Another item**: More changes
+---
+*Last updated: YYYY-MM-DD (description)*
+```
+
+---
+
+## 11. Open Questions Resolved
 
 | Question | Decision | Rationale |
 |----------|----------|-----------|
