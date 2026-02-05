@@ -207,6 +207,48 @@ async function fetchWithMethod<T>(path: string, method: string): Promise<T> {
   return response.json();
 }
 
+async function putJSON<T>(path: string, body: unknown): Promise<T> {
+  logSync(`putJSON called for path: ${path}`);
+
+  const tFetch = await getTauriFetch();
+
+  if (tFetch) {
+    const url = `${SERVER_URL}/api${path}`;
+    logSync(`using tauriFetch PUT for: ${url}`);
+
+    const response = await tFetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    logSync(`tauriFetch PUT response status: ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    // PUT returns 200 OK with no body
+    return {} as T;
+  }
+
+  // Fallback to browser fetch
+  const url = `/api${path}`;
+  logSync(`using browser fetch PUT for: ${url}`);
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  return {} as T;
+}
+
 export const api = {
   // Files
   async listFiles(filters?: { type?: string; tag?: string; folder?: string }): Promise<{ count: number; items: FileListItem[] }> {
@@ -220,6 +262,14 @@ export const api = {
 
   async getFile(path: string): Promise<OrgDocument> {
     return fetchJSON(`/files/${path}`);
+  },
+
+  async updateFile(
+    path: string,
+    frontmatter: Record<string, unknown>,
+    content: string
+  ): Promise<void> {
+    await putJSON(`/files/${path}`, { frontmatter, content });
   },
 
   // Search

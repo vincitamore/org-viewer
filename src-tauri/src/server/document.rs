@@ -125,3 +125,69 @@ fn infer_type(frontmatter_type: &Option<String>, path: &Path, org_root: &Path) -
         _ => "other".to_string(),
     }
 }
+
+/// Serialize frontmatter and content back to a markdown file with YAML frontmatter
+pub fn serialize_document(
+    frontmatter: &HashMap<String, serde_json::Value>,
+    content: &str,
+) -> String {
+    let mut yaml = String::from("---\n");
+
+    // Order frontmatter fields for consistency
+    let field_order = ["type", "status", "created", "completed", "updated", "tags", "blocked-by"];
+
+    // Write ordered fields first
+    for key in field_order {
+        if let Some(value) = frontmatter.get(key) {
+            yaml.push_str(&format_yaml_field(key, value));
+        }
+    }
+
+    // Write remaining fields
+    for (key, value) in frontmatter {
+        if !field_order.contains(&key.as_str()) {
+            yaml.push_str(&format_yaml_field(key, value));
+        }
+    }
+
+    yaml.push_str("---\n");
+    yaml.push_str(content);
+    yaml
+}
+
+fn format_yaml_field(key: &str, value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => format!("{}: null\n", key),
+        serde_json::Value::Bool(b) => format!("{}: {}\n", key, b),
+        serde_json::Value::Number(n) => format!("{}: {}\n", key, n),
+        serde_json::Value::String(s) => {
+            // Check if string needs quoting
+            if s.contains(':') || s.contains('#') || s.starts_with('-') || s.starts_with('[') {
+                format!("{}: \"{}\"\n", key, s.replace('"', "\\\""))
+            } else {
+                format!("{}: {}\n", key, s)
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                format!("{}: []\n", key)
+            } else {
+                let mut result = format!("{}: [", key);
+                let items: Vec<String> = arr
+                    .iter()
+                    .map(|v| match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        _ => v.to_string(),
+                    })
+                    .collect();
+                result.push_str(&items.join(", "));
+                result.push_str("]\n");
+                result
+            }
+        }
+        serde_json::Value::Object(_) => {
+            // For complex objects, use JSON serialization
+            format!("{}: {}\n", key, serde_json::to_string(value).unwrap_or_default())
+        }
+    }
+}

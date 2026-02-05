@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, type OrgDocument } from '../lib/api';
 import { liveReload } from '../lib/websocket';
+import TuiEditor, { type EditorData } from './TuiEditor';
+import { getEditorFields, documentToEditorData, editorDataToPayload } from '../lib/editor-helpers';
 
 interface DocumentViewProps {
   path: string;
@@ -14,21 +16,23 @@ export default function DocumentView({ path, onBack, onNavigate }: DocumentViewP
   const [document, setDocument] = useState<OrgDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchDocument = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.getFile(path);
+      setDocument(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load document');
+    } finally {
+      setLoading(false);
+    }
+  }, [path]);
 
   useEffect(() => {
-    const fetchDocument = async () => {
-      try {
-        setLoading(true);
-        const data = await api.getFile(path);
-        setDocument(data);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load document');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchDocument();
 
     // Refresh when this specific document changes
@@ -39,7 +43,48 @@ export default function DocumentView({ path, onBack, onNavigate }: DocumentViewP
     });
 
     return () => unsubUpdate();
-  }, [path]);
+  }, [path, fetchDocument]);
+
+  // Keyboard shortcut for edit mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 'e' to edit (when not already editing and not in an input)
+      if (
+        e.key === 'e' &&
+        !isEditing &&
+        document &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement)
+      ) {
+        e.preventDefault();
+        setIsEditing(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, document]);
+
+  const handleSave = useCallback(async (data: EditorData) => {
+    if (!document) return;
+
+    try {
+      setSaving(true);
+      const { frontmatter, content } = editorDataToPayload(data, document);
+      await api.updateFile(path, frontmatter, content);
+      setIsEditing(false);
+      // Refresh document to show updated content
+      await fetchDocument();
+    } catch (err) {
+      alert(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [document, path, fetchDocument]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
 
   // Process content to handle wikilinks
   const processContent = (content: string): string => {
@@ -92,6 +137,29 @@ export default function DocumentView({ path, onBack, onNavigate }: DocumentViewP
 
   if (!document) return null;
 
+  // Edit mode - show TuiEditor
+  if (isEditing) {
+    return (
+      <div className="h-full relative">
+        {saving && (
+          <div
+            className="absolute inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          >
+            <span style={{ color: 'var(--term-foreground)' }}>Saving...</span>
+          </div>
+        )}
+        <TuiEditor
+          title={`Edit: ${document.title}`}
+          fields={getEditorFields(document.type)}
+          initialData={documentToEditorData(document)}
+          onSave={handleSave}
+          onCancel={handleCancelEdit}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
       {/* Header */}
@@ -106,6 +174,14 @@ export default function DocumentView({ path, onBack, onNavigate }: DocumentViewP
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-xs px-2 py-1 border hover:bg-white/5 transition-colors"
+              style={{ borderColor: 'var(--term-border)', color: 'var(--term-info)' }}
+              title="Press 'e' to edit"
+            >
+              [e] Edit
+            </button>
             {document.type && (
               <span
                 className="text-xs px-2 py-1"

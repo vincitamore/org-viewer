@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::server::{log_to_file, AppState};
+use crate::server::document::serialize_document;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
@@ -182,6 +183,45 @@ pub async fn get_file(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+#[derive(Deserialize)]
+pub struct UpdateFileRequest {
+    frontmatter: HashMap<String, serde_json::Value>,
+    content: String,
+}
+
+pub async fn put_file(
+    State(state): State<Arc<AppState>>,
+    Path(path): Path<String>,
+    Json(payload): Json<UpdateFileRequest>,
+) -> Result<StatusCode, StatusCode> {
+    log_to_file(&format!("[server] PUT /api/files/{}", path));
+
+    // Validate path - prevent directory traversal
+    let full_path = state.org_root.join(&path);
+    let canonical_root = state.org_root.canonicalize()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let canonical_path = full_path.canonicalize()
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    if !canonical_path.starts_with(&canonical_root) {
+        log_to_file(&format!("[server] PUT rejected - path traversal attempt: {}", path));
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Reconstruct file with frontmatter
+    let file_content = serialize_document(&payload.frontmatter, &payload.content);
+
+    // Write to filesystem
+    if let Err(e) = std::fs::write(&full_path, &file_content) {
+        log_to_file(&format!("[server] PUT failed to write: {}", e));
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    log_to_file(&format!("[server] PUT success: {}", path));
+    // File watcher will auto-refresh index
+    Ok(StatusCode::OK)
 }
 
 #[derive(Deserialize)]

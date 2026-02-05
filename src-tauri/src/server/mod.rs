@@ -3,7 +3,7 @@ pub mod index;
 pub mod routes;
 pub mod watcher;
 
-use axum::{routing::{get, post}, Router};
+use axum::{routing::{get, post, put}, Router};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -74,7 +74,7 @@ pub async fn start_server(org_root: PathBuf, port: u16) -> Result<(), Box<dyn st
         .route("/api/health", get(routes::health))
         .route("/api/status", get(routes::status))
         .route("/api/files", get(routes::list_files))
-        .route("/api/files/{*path}", get(routes::get_file))
+        .route("/api/files/{*path}", get(routes::get_file).put(routes::put_file))
         .route("/api/search", get(routes::search))
         .route("/api/graph", get(routes::graph))
         .route("/api/debug-log", post(routes::debug_log))
