@@ -304,6 +304,47 @@ export const api = {
   async health(): Promise<{ status: string; timestamp: string }> {
     return fetchJSON('/health');
   },
+
+  // Projects
+  async listProjects(): Promise<Project[]> {
+    return fetchJSON('/projects');
+  },
+
+  async getProjectTree(name: string): Promise<TreeEntry[]> {
+    return fetchJSON(`/projects/${encodeURIComponent(name)}/tree`);
+  },
+
+  async getProjectFile(project: string, path: string): Promise<ProjectFile> {
+    return fetchJSON(`/projects/${encodeURIComponent(project)}/file/${path}`);
+  },
+
+  async updateProjectFile(project: string, path: string, content: string): Promise<void> {
+    await putJSON(`/projects/${encodeURIComponent(project)}/file/${path}`, { content });
+  },
 };
+
+// --- Project Types ---
+
+export interface Project {
+  name: string;
+  hasReadme: boolean;
+  hasClaude: boolean;
+}
+
+export interface TreeEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  size?: number;
+  language?: string;
+  children?: TreeEntry[];
+}
+
+export interface ProjectFile {
+  path: string;
+  content: string;
+  language: string | null;
+  size: number;
+}
 
 logSync('api.ts fully loaded');

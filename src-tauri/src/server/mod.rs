@@ -1,5 +1,6 @@
 pub mod document;
 pub mod index;
+pub mod projects;
 pub mod routes;
 pub mod watcher;
 
@@ -77,6 +78,9 @@ pub async fn start_server(org_root: PathBuf, port: u16) -> Result<(), Box<dyn st
         .route("/api/files/{*path}", get(routes::get_file).put(routes::put_file))
         .route("/api/search", get(routes::search))
         .route("/api/graph", get(routes::graph))
+        .route("/api/projects", get(projects::list_projects))
+        .route("/api/projects/{name}/tree", get(projects::get_tree))
+        .route("/api/projects/{name}/file/{*path}", get(projects::get_file).put(projects::put_file))
         .route("/api/debug-log", post(routes::debug_log))
         .layer(cors)
         .with_state(state);

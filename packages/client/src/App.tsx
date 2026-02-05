@@ -7,12 +7,13 @@ import Dashboard from './components/Dashboard';
 import DocumentList from './components/DocumentList';
 import DocumentView from './components/DocumentView';
 import Graph from './components/Graph';
+import CodeView from './components/CodeView';
 import ThemePicker from './components/ThemePicker';
 
 // Check if running in Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
-type View = 'dashboard' | 'tasks' | 'knowledge' | 'inbox' | 'reminders' | 'graph';
+type View = 'dashboard' | 'tasks' | 'knowledge' | 'inbox' | 'reminders' | 'graph' | 'code';
 type ViewWithDocument = View | 'document';
 
 function App() {
@@ -83,11 +84,12 @@ function App() {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip all global shortcuts when typing in form fields
+      // Skip all global shortcuts when typing in form fields or CodeMirror editor
       const isTyping = document.activeElement?.tagName === 'INPUT' ||
-                       document.activeElement?.tagName === 'TEXTAREA';
+                       document.activeElement?.tagName === 'TEXTAREA' ||
+                       !!document.activeElement?.closest('.cm-editor');
 
-      // Theme picker
+      // Theme picker toggle — only when not typing
       if (e.key === 't' && !e.ctrlKey && !e.metaKey && !isTyping) {
         e.preventDefault();
         setShowThemePicker(p => !p);
@@ -119,6 +121,7 @@ function App() {
         if (e.key === '4') { e.preventDefault(); setView('inbox'); }
         if (e.key === '5') { e.preventDefault(); setView('reminders'); }
         if (e.key === '6') { e.preventDefault(); setView('graph'); }
+        if (e.key === '7') { e.preventDefault(); setView('code'); }
       }
     };
 
@@ -184,6 +187,7 @@ function App() {
               { key: '4', label: 'Inbox', view: 'inbox' as View },
               { key: '5', label: 'Reminders', view: 'reminders' as View },
               { key: '6', label: 'Graph', view: 'graph' as View },
+              { key: '7', label: 'Code', view: 'code' as View },
             ].map((item) => (
               <button
                 key={item.key}
@@ -262,6 +266,17 @@ function App() {
             >
               <Graph onSelectDocument={handleSelectDocument} />
             </motion.div>
+          ) : view === 'code' ? (
+            <motion.div
+              key="code"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex-1 min-h-0"
+            >
+              <CodeView />
+            </motion.div>
           ) : (
             <motion.div
               key={view}
@@ -303,6 +318,7 @@ function App() {
           { key: '4', label: 'Inbox', view: 'inbox' as View },
           { key: '5', label: '⏰', view: 'reminders' as View },
           { key: '6', label: 'Graph', view: 'graph' as View },
+          { key: '7', label: '</>', view: 'code' as View },
         ].map((item) => (
           <button
             key={item.key}

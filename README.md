@@ -10,7 +10,8 @@ A lightweight, personal document viewer for [claude-org](https://github.com/vinc
 
 - **TUI Aesthetic**: Terminal-inspired design with 6 color themes
 - **Document Editing**: nano-style editor with `e` key, direct filesystem writes
-- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Reminders, Graph
+- **Code Editor**: CodeMirror 6 with syntax highlighting for 12+ languages, project file browser
+- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Reminders, Graph, Code
 - **Reminders**: Time-based reminders with status filtering (pending, snoozed, ongoing, completed, dismissed)
 - **Live Reload**: File changes update the UI in real-time
 - **PWA Support**: Install on mobile for native-like experience
@@ -29,6 +30,19 @@ Edit documents directly in the viewer with `e` key or click the Edit button:
 - **Tab** to navigate between fields
 - Touch-friendly buttons for mobile use
 - Changes write directly to filesystem and trigger live reload
+
+### Code Editor
+
+Browse and edit project source code with full syntax highlighting:
+
+![Code Editor](screenshots/org-viewer-code.png)
+
+- **CodeMirror 6** with 12 language packs (TypeScript, Rust, Python, JSON, CSS, HTML, and more)
+- **Project browser** with file tree, type badges, and file sizes
+- **Terminal theme integration** — syntax colors match your active theme
+- **Inline editing** with `e` to edit, `Ctrl+S` to save, `Escape` to cancel
+- **Resizable sidebar** with `Ctrl+B` toggle, width persisted to localStorage
+- Press `7` to switch to Code view
 
 ### Reminders
 
@@ -79,16 +93,15 @@ pnpm build
 ```
 org-viewer/
 ├── packages/
-│   ├── server/       # Bun + Hono backend
+│   ├── server/       # Bun + Hono backend (standalone mode)
+│   ├── client/       # React + Vite PWA
 │   │   └── src/
-│   │       ├── services/  # Document parsing, indexing, file watching
-│   │       ├── routes/    # API endpoints
-│   │       └── ws/        # WebSocket live reload
-│   └── client/       # React + Vite PWA
-│       └── src/
-│           ├── components/  # TUI-style React components
-│           └── lib/         # API client, theme, WebSocket
-└── src-tauri/        # Tauri native wrapper (optional)
+│   │       ├── components/  # Dashboard, DocumentList, CodeView, Graph, etc.
+│   │       └── lib/         # API client, theme, WebSocket, CodeMirror theme
+│   └── mcp/          # MCP server for Claude Code integration
+└── src-tauri/        # Tauri native wrapper + embedded Rust/Axum server
+    └── src/
+        └── server/   # Embedded server (documents, projects, search, graph)
 ```
 
 ## API Endpoints
@@ -103,6 +116,10 @@ org-viewer/
 | `GET /api/status` | Server/index stats |
 | `POST /api/status/reindex` | Force reindex |
 | `GET /api/health` | Health check |
+| `GET /api/projects` | List project directories |
+| `GET /api/projects/:name/tree` | Get file tree for a project |
+| `GET /api/projects/:name/file/*path` | Read a project file |
+| `PUT /api/projects/:name/file/*path` | Write a project file |
 
 ## Tailscale Setup
 
@@ -126,20 +143,29 @@ Environment variables:
 ### Navigation
 | Key | Action |
 |-----|--------|
-| `1-6` | Switch views (Dashboard, Tasks, Knowledge, Inbox, Reminders, Graph) |
+| `1-7` | Switch views (Dashboard, Tasks, Knowledge, Inbox, Reminders, Graph, Code) |
 | `q` / `Esc` | Go back |
 | `j` / `↓` | Next item |
 | `k` / `↑` | Previous item |
 | `Enter` | Open selected |
 | `t` | Toggle theme picker |
 
-### Editor (when editing)
+### Document Editor (when editing)
 | Key | Action |
 |-----|--------|
 | `Ctrl+S` | Save changes |
 | `Ctrl+X` / `Esc` | Exit editor |
 | `Tab` | Next field |
 | `Shift+Tab` | Previous field |
+
+### Code Editor (view 7)
+| Key | Action |
+|-----|--------|
+| `e` | Enter edit mode |
+| `Ctrl+S` | Save file |
+| `Escape` | Exit edit mode |
+| `Ctrl+B` | Toggle sidebar |
+| `Ctrl+F` | Find in file |
 
 ## Native App (Tauri)
 
@@ -151,10 +177,10 @@ For a native desktop experience with no external dependencies:
 # Development (hot reload)
 pnpm tauri dev
 
-# Production build (~8MB standalone exe)
+# Production build (~9MB standalone exe)
 pnpm tauri build
 ```
 
 The built executable is at `src-tauri/target/release/org-viewer.exe`.
 
-**Note:** Always use `pnpm tauri build` (not `cargo build`). This builds the frontend first, then bundles it into the native app.
+**Note:** Always use `pnpm tauri build` (not `cargo build`). This builds the frontend first, then bundles it into the native app. See the [build process knowledge article](https://github.com/vincitamore/org-viewer/wiki) for deployment details.
