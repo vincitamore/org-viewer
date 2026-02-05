@@ -10,7 +10,8 @@ A lightweight, personal document viewer for [claude-org](https://github.com/vinc
 
 - **TUI Aesthetic**: Terminal-inspired design with 6 color themes
 - **Document Editing**: nano-style editor with `e` key, direct filesystem writes
-- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Graph
+- **Document Views**: Dashboard, Tasks, Knowledge Base, Inbox, Reminders, Graph
+- **Reminders**: Time-based reminders with status filtering (pending, snoozed, ongoing, completed, dismissed)
 - **Live Reload**: File changes update the UI in real-time
 - **PWA Support**: Install on mobile for native-like experience
 - **Keyboard Navigation**: vim-style `j/k` navigation, number keys for views
@@ -28,6 +29,16 @@ Edit documents directly in the viewer with `e` key or click the Edit button:
 - **Tab** to navigate between fields
 - Touch-friendly buttons for mobile use
 - Changes write directly to filesystem and trigger live reload
+
+### Reminders
+
+Track time-based reminders with status filtering:
+
+![Reminders](screenshots/org-viewer-reminders.png)
+
+- **Status filters**: pending, snoozed, ongoing, completed, dismissed
+- **MCP tools**: create, update, complete, dismiss, snooze reminders
+- **Session alerts**: Claude alerts you to due/overdue reminders at session start
 
 ### Graph View
 
@@ -115,7 +126,7 @@ Environment variables:
 ### Navigation
 | Key | Action |
 |-----|--------|
-| `1-5` | Switch views |
+| `1-6` | Switch views (Dashboard, Tasks, Knowledge, Inbox, Reminders, Graph) |
 | `q` / `Esc` | Go back |
 | `j` / `↓` | Next item |
 | `k` / `↑` | Previous item |

@@ -101,6 +101,7 @@ fn infer_type(frontmatter_type: &Option<String>, path: &Path, org_root: &Path) -
             "task" => return "task".to_string(),
             "knowledge" => return "knowledge".to_string(),
             "inbox" => return "inbox".to_string(),
+            "reminder" => return "reminder".to_string(),
             "project" => return "project".to_string(),
             "tag-index" | "tag" => return "tag".to_string(),
             _ => {}
@@ -120,6 +121,7 @@ fn infer_type(frontmatter_type: &Option<String>, path: &Path, org_root: &Path) -
         "tasks" => "task".to_string(),
         "knowledge" => "knowledge".to_string(),
         "inbox" => "inbox".to_string(),
+        "reminders" => "reminder".to_string(),
         "projects" => "project".to_string(),
         "tags" => "tag".to_string(),
         _ => "other".to_string(),
