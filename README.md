@@ -217,7 +217,7 @@ For a native desktop experience with no external dependencies:
 # Development (hot reload)
 pnpm tauri dev
 
-# Production build (~9MB standalone exe)
+# Production build (~17MB standalone exe)
 pnpm tauri build
 ```
 
