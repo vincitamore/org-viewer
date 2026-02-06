@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, type Project, type TreeEntry, type ProjectFile } from '../lib/api';
+import { liveReload } from '../lib/websocket';
 import FileTree from './FileTree';
 import CodeEditor from './CodeEditor';
 
@@ -68,6 +69,43 @@ export default function CodeView() {
       setTreeLoading(false);
     });
   }, [selectedProject]);
+
+  // Live reload: refresh tree and file data when files change
+  useEffect(() => {
+    const unsubReload = liveReload.onReload(() => {
+      // Full reload — refresh project list and tree
+      api.listProjects().then(setProjects).catch(console.error);
+      if (selectedProject) {
+        api.getProjectTree(selectedProject).then(setTree).catch(console.error);
+      }
+    });
+
+    const unsubUpdate = liveReload.onUpdate(() => {
+      // A file changed — refresh tree to pick up new/changed files
+      if (selectedProject) {
+        api.getProjectTree(selectedProject).then(setTree).catch(console.error);
+      }
+      // If the currently viewed file was modified externally, refresh it
+      // (but not if user is actively editing — don't clobber their work)
+      if (selectedProject && selectedFile && !isEditing) {
+        api.getProjectFile(selectedProject, selectedFile)
+          .then(setFileData)
+          .catch(console.error);
+      }
+    });
+
+    const unsubRemove = liveReload.onRemove(() => {
+      if (selectedProject) {
+        api.getProjectTree(selectedProject).then(setTree).catch(console.error);
+      }
+    });
+
+    return () => {
+      unsubReload();
+      unsubUpdate();
+      unsubRemove();
+    };
+  }, [selectedProject, selectedFile, isEditing]);
 
   // Load file when selected
   const loadFile = useCallback(async (path: string) => {
@@ -266,8 +304,23 @@ export default function CodeView() {
           </div>
         )}
 
-        {/* Right side: edit toggle, dirty indicator, hints */}
+        {/* Right side: sidebar toggle, edit toggle, dirty indicator, hints */}
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* Sidebar toggle button — always visible */}
+          <button
+            onClick={() => {
+              setSidebarCollapsed(prev => {
+                const next = !prev;
+                localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, String(next));
+                return next;
+              });
+            }}
+            className="text-xs px-2 py-1 border hover:bg-white/5 transition-colors"
+            style={{ borderColor: 'var(--term-border)', color: 'var(--term-muted)' }}
+            title="Toggle sidebar (Ctrl+B)"
+          >
+            {sidebarCollapsed ? '>' : '<'}
+          </button>
           {saving && (
             <span className="text-xs" style={{ color: 'var(--term-warning)' }}>Saving...</span>
           )}
@@ -301,14 +354,11 @@ export default function CodeView() {
             </button>
           )}
           {fileData && (
-            <span className="text-xs" style={{ color: 'var(--term-muted)' }}>
+            <span className="text-xs hidden sm:inline" style={{ color: 'var(--term-muted)' }}>
               {fileData.language || 'text'}
               {fileData.size > 0 && ` \u00B7 ${(fileData.size / 1024).toFixed(1)}KB`}
             </span>
           )}
-          <span className="text-xs hidden lg:block" style={{ color: 'var(--term-muted)' }}>
-            Ctrl+B sidebar
-          </span>
         </div>
       </div>
 

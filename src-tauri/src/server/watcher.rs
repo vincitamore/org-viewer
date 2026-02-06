@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-use crate::server::AppState;
+use crate::server::{log_to_file, AppState};
 
 pub struct FileWatcher;
 
@@ -23,7 +23,7 @@ impl FileWatcher {
 
         watcher.watch(&state.org_root, RecursiveMode::Recursive)?;
 
-        println!("File watcher started for {:?}", state.org_root);
+        log_to_file(&format!("File watcher started for {:?}", state.org_root));
 
         // Keep watcher alive and process events
         while let Some(event) = rx.recv().await {
@@ -47,16 +47,38 @@ impl FileWatcher {
                 continue;
             }
 
+            let relative_path = path
+                .strip_prefix(&state.org_root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+
             match event.kind {
                 EventKind::Create(_) | EventKind::Modify(_) => {
-                    println!("File changed: {:?}", path);
+                    log_to_file(&format!("File changed: {}", relative_path));
                     let mut index = state.index.write().await;
                     index.refresh_document(path);
+
+                    // Notify WebSocket clients
+                    let msg = serde_json::json!({
+                        "type": "update",
+                        "path": relative_path,
+                        "timestamp": chrono::Utc::now().timestamp_millis()
+                    });
+                    let _ = state.ws_tx.send(msg.to_string());
                 }
                 EventKind::Remove(_) => {
-                    println!("File removed: {:?}", path);
+                    log_to_file(&format!("File removed: {}", relative_path));
                     let mut index = state.index.write().await;
                     index.remove_document(path);
+
+                    // Notify WebSocket clients
+                    let msg = serde_json::json!({
+                        "type": "remove",
+                        "path": relative_path,
+                        "timestamp": chrono::Utc::now().timestamp_millis()
+                    });
+                    let _ = state.ws_tx.send(msg.to_string());
                 }
                 _ => {}
             }

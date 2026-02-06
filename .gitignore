@@ -22,3 +22,14 @@ Thumbs.db
 
 # Logs
 *.log
+
+# TLS certificates (Tailscale)
+certs/
+*.crt
+*.key
+
+# Environment
+.env
+
+# Index cache
+.org-viewer-index.json

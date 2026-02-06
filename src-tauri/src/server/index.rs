@@ -368,7 +368,8 @@ impl DocumentIndex {
                 "build",
                 ".next",
                 "target",
-                "x", // Twitter archive
+                "x",       // Twitter archive
+                "archive", // Semantic archive (emails, tickets, research, reports)
             ];
 
             if excluded.contains(&name.as_ref()) {

@@ -44,32 +44,59 @@ export default function Dashboard({ status, onSelectDocument, onRefresh }: Dashb
       });
   }, [status]); // Re-fetch when status changes (on refresh)
 
+  // Derive actionable counts from byStatus
+  const { byStatus, byType } = status.documents;
+
+  // Tasks: active is the headline, blocked/review need attention
+  const activeTasks = byStatus.active || 0;
+  const blockedTasks = byStatus.blocked || 0;
+  const reviewTasks = byStatus.review || 0;
+  const totalTasks = byType.task || 0;
+  const needsAttention = blockedTasks + reviewTasks;
+
+  // Inbox: total inbox items (these are all actionable by nature)
+  const inboxCount = byType.inbox || 0;
+
+  // Reminders: pending + snoozed + ongoing are "live"
+  const pendingReminders = byStatus.pending || 0;
+  const snoozedReminders = byStatus.snoozed || 0;
+  const ongoingReminders = byStatus.ongoing || 0;
+  const liveReminders = pendingReminders + snoozedReminders + ongoingReminders;
+
+  // Knowledge: total is fine
+  const knowledgeCount = byType.knowledge || 0;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Stats */}
+      {/* Stats — actionable numbers first */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <StatCard label="Total Docs" value={status.documents.total} />
         <StatCard
-          label="Tasks"
-          value={status.documents.byType.task || 0}
-          subValue={`${status.documents.byStatus.active || 0} active`}
+          label="Active Tasks"
+          value={activeTasks}
+          subValue={`${totalTasks} total`}
           color="var(--term-success)"
         />
         <StatCard
-          label="Knowledge"
-          value={status.documents.byType.knowledge || 0}
-          color="var(--term-info)"
-        />
-        <StatCard
           label="Inbox"
-          value={status.documents.byType.inbox || 0}
+          value={inboxCount}
           color="var(--term-warning)"
         />
         <StatCard
           label="Reminders"
-          value={status.documents.byType.reminder || 0}
-          subValue={`${status.documents.byStatus.pending || 0} pending`}
+          value={liveReminders}
+          subValue={snoozedReminders > 0 ? `${snoozedReminders} snoozed` : undefined}
           color="#ff6b6b"
+        />
+        <StatCard
+          label="Knowledge"
+          value={knowledgeCount}
+          color="var(--term-info)"
+        />
+        <StatCard
+          label="Needs Input"
+          value={needsAttention}
+          subValue={needsAttention > 0 ? `${blockedTasks} blocked, ${reviewTasks} review` : undefined}
+          color={needsAttention > 0 ? 'var(--term-error)' : 'var(--term-muted)'}
         />
       </div>
 
@@ -197,7 +224,7 @@ export default function Dashboard({ status, onSelectDocument, onRefresh }: Dashb
             Server uptime: {formatUptime(status.server.uptime)}
           </span>
           <span>
-            {status.server.connectedClients} connected client{status.server.connectedClients !== 1 ? 's' : ''}
+            {status.documents.total} docs indexed
           </span>
         </div>
       </section>

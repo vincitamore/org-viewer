@@ -123,10 +123,48 @@ org-viewer/
 
 ## Tailscale Setup
 
-1. Install Tailscale on your machine
-2. Start the server: `ORG_ROOT=/path/to/claude-org pnpm dev:server`
-3. Access via Tailscale hostname: `http://your-machine:3847`
-4. Install as PWA on mobile devices
+Access the viewer remotely over your Tailscale network with HTTPS:
+
+### 1. Generate Tailscale TLS certificates
+
+```bash
+# Replace with your machine's Tailscale hostname
+tailscale cert your-machine.your-tailnet.ts.net
+```
+
+This creates two files in the current directory:
+- `your-machine.your-tailnet.ts.net.crt`
+- `your-machine.your-tailnet.ts.net.key`
+
+### 2. Set environment variables
+
+```bash
+# Point to your cert files (absolute paths recommended)
+set ORG_VIEWER_TLS_CERT=C:\path\to\your-machine.your-tailnet.ts.net.crt
+set ORG_VIEWER_TLS_KEY=C:\path\to\your-machine.your-tailnet.ts.net.key
+```
+
+Or create a `.env` file (gitignored):
+```
+ORG_VIEWER_TLS_CERT=C:\path\to\certs\your-machine.your-tailnet.ts.net.crt
+ORG_VIEWER_TLS_KEY=C:\path\to\certs\your-machine.your-tailnet.ts.net.key
+```
+
+### 3. Launch the viewer
+
+The native app (or standalone server) will automatically detect the TLS cert env vars and serve over HTTPS. Without them, it falls back to HTTP.
+
+```
+# With TLS → https://your-machine.your-tailnet.ts.net:3848 (HTTPS on port+1)
+#           + http://localhost:3847 (local WebView, unchanged)
+# Without TLS → http://localhost:3847
+```
+
+### 4. Access from other devices
+
+Open `https://your-machine.your-tailnet.ts.net:3848` in any browser on your Tailscale network. Install as a PWA on mobile for a native-like experience.
+
+> **Note**: Cert files (`.crt`, `.key`) and the `certs/` directory are gitignored. Never commit TLS certificates.
 
 ## Configuration
 
@@ -136,7 +174,9 @@ Environment variables:
 |----------|---------|-------------|
 | `PORT` | 3847 | Server port |
 | `ORG_ROOT` | `cwd` | Path to claude-org root |
-| `STATIC_DIR` | `../client/dist` | Path to built client |
+| `STATIC_DIR` | `../client/dist` | Path to built client (standalone mode) |
+| `ORG_VIEWER_TLS_CERT` | *(none)* | Path to TLS certificate file (`.crt`) |
+| `ORG_VIEWER_TLS_KEY` | *(none)* | Path to TLS private key file (`.key`) |
 
 ## Keyboard Shortcuts
 

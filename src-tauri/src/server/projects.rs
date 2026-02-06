@@ -74,12 +74,54 @@ const EXCLUDED_FILES: &[&str] = &[
     ".env.local",
 ];
 
+/// Extra directories to exclude when browsing org root (not regular projects)
+const ORG_ROOT_EXCLUDED_DIRS: &[&str] = &[
+    "projects",
+    "scratchpad",
+    "archive",
+    "tags",
+    "screenshots",
+    "x",
+];
+
 fn should_exclude_entry(name: &str, is_dir: bool) -> bool {
     if is_dir {
         EXCLUDED_DIRS.contains(&name)
     } else {
         EXCLUDED_FILES.contains(&name)
     }
+}
+
+/// Extra exclusions when browsing the org root as a project
+fn should_exclude_org_root_entry(name: &str, is_dir: bool) -> bool {
+    if is_dir {
+        ORG_ROOT_EXCLUDED_DIRS.contains(&name)
+    } else {
+        false
+    }
+}
+
+/// Get the org root's folder name for use as a virtual project name
+fn org_root_name(state: &AppState) -> String {
+    state.org_root.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "claude-org".to_string())
+}
+
+/// Resolve a project name to its actual directory on disk.
+/// Handles both regular projects (under projects/) and the org root itself.
+fn resolve_project_dir(state: &AppState, name: &str) -> Option<PathBuf> {
+    if name == org_root_name(state) {
+        Some(state.org_root.clone())
+    } else {
+        let dir = state.org_root.join("projects").join(name);
+        if dir.is_dir() { Some(dir) } else { None }
+    }
+}
+
+/// Check if this project name refers to the org root
+fn is_org_root_project(state: &AppState, name: &str) -> bool {
+    name == org_root_name(state)
 }
 
 /// Detect language from file extension
@@ -146,6 +188,17 @@ pub async fn list_projects(
 
     let mut projects = Vec::new();
 
+    // Add org root itself as a browsable project
+    let root_name = org_root_name(&state);
+    let has_readme = state.org_root.join("README.md").exists();
+    let has_claude = state.org_root.join("CLAUDE.md").exists();
+    projects.push(Project {
+        name: root_name,
+        has_readme,
+        has_claude,
+    });
+
+    // Add subdirectories of projects/
     if let Ok(entries) = std::fs::read_dir(&projects_dir) {
         for entry in entries.flatten() {
             if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
@@ -178,7 +231,10 @@ pub async fn get_tree(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<Vec<TreeEntry>>, StatusCode> {
-    let project_dir = state.org_root.join("projects").join(&name);
+    let project_dir = match resolve_project_dir(&state, &name) {
+        Some(dir) => dir,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
 
     // Validate project exists
     if !project_dir.is_dir() {
@@ -186,22 +242,23 @@ pub async fn get_tree(
     }
 
     // Validate no path traversal
-    let canonical_projects = state.org_root.join("projects")
+    let canonical_org = state.org_root
         .canonicalize()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let canonical_project = project_dir
         .canonicalize()
         .map_err(|_| StatusCode::NOT_FOUND)?;
-    if !canonical_project.starts_with(&canonical_projects) {
+    if !canonical_project.starts_with(&canonical_org) {
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let tree = build_tree(&project_dir, &project_dir);
+    let is_org = is_org_root_project(&state, &name);
+    let tree = build_tree(&project_dir, &project_dir, is_org);
     Ok(Json(tree))
 }
 
 /// Build a file tree recursively
-fn build_tree(dir: &PathBuf, project_root: &PathBuf) -> Vec<TreeEntry> {
+fn build_tree(dir: &PathBuf, project_root: &PathBuf, is_org_root: bool) -> Vec<TreeEntry> {
     let mut entries = Vec::new();
 
     let mut dir_entries: Vec<_> = match std::fs::read_dir(dir) {
@@ -234,6 +291,11 @@ fn build_tree(dir: &PathBuf, project_root: &PathBuf) -> Vec<TreeEntry> {
             continue;
         }
 
+        // Extra exclusions for org root browsing (skip projects/, scratchpad/, etc.)
+        if is_org_root && should_exclude_org_root_entry(&name, is_dir) {
+            continue;
+        }
+
         let relative_path = entry.path()
             .strip_prefix(project_root)
             .unwrap_or(entry.path().as_ref())
@@ -241,7 +303,7 @@ fn build_tree(dir: &PathBuf, project_root: &PathBuf) -> Vec<TreeEntry> {
             .replace('\\', "/");
 
         if is_dir {
-            let children = build_tree(&entry.path().to_path_buf(), project_root);
+            let children = build_tree(&entry.path().to_path_buf(), project_root, is_org_root);
             // Skip empty directories
             if children.is_empty() {
                 continue;
@@ -282,16 +344,21 @@ pub async fn get_file(
     State(state): State<Arc<AppState>>,
     Path((name, file_path)): Path<(String, String)>,
 ) -> Result<Json<ProjectFile>, StatusCode> {
-    let full_path = state.org_root.join("projects").join(&name).join(&file_path);
+    let project_dir = match resolve_project_dir(&state, &name) {
+        Some(dir) => dir,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
 
-    // Validate no path traversal
-    let canonical_projects = state.org_root.join("projects")
+    let full_path = project_dir.join(&file_path);
+
+    // Validate no path traversal — must stay within org root
+    let canonical_org = state.org_root
         .canonicalize()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let canonical_path = full_path
         .canonicalize()
         .map_err(|_| StatusCode::NOT_FOUND)?;
-    if !canonical_path.starts_with(&canonical_projects) {
+    if !canonical_path.starts_with(&canonical_org) {
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -341,10 +408,15 @@ pub async fn put_file(
 ) -> Result<StatusCode, StatusCode> {
     log_to_file(&format!("[projects] PUT /api/projects/{}/file/{}", name, file_path));
 
-    let full_path = state.org_root.join("projects").join(&name).join(&file_path);
+    let project_dir = match resolve_project_dir(&state, &name) {
+        Some(dir) => dir,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
 
-    // Validate no path traversal
-    let canonical_projects = state.org_root.join("projects")
+    let full_path = project_dir.join(&file_path);
+
+    // Validate no path traversal — must stay within org root
+    let canonical_org = state.org_root
         .canonicalize()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -354,7 +426,7 @@ pub async fn put_file(
         .canonicalize()
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    if !canonical_path.starts_with(&canonical_projects) {
+    if !canonical_path.starts_with(&canonical_org) {
         log_to_file(&format!("[projects] PUT rejected - path traversal: {}", file_path));
         return Err(StatusCode::FORBIDDEN);
     }

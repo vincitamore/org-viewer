@@ -9,8 +9,8 @@ const SERVER_URL = 'http://127.0.0.1:3847';
 // Log via Tauri IPC (bypasses mixed content restrictions)
 async function log(msg: string) {
   try {
-    // Try Tauri invoke for logging
-    if ('__TAURI__' in window) {
+    // Only use Tauri IPC when running inside the Tauri WebView
+    if ('__TAURI_INTERNALS__' in window) {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('frontend_log', { msg });
     }
@@ -41,6 +41,13 @@ async function getTauriFetch(): Promise<typeof fetch | null> {
   }
 
   tauriFetchInitialized = true;
+
+  // Only attempt Tauri fetch when running inside the Tauri WebView.
+  // In a regular browser (remote/Tailscale access), skip straight to browser fetch.
+  if (!('__TAURI_INTERNALS__' in window)) {
+    logSync('not in Tauri WebView, skipping plugin import');
+    return null;
+  }
 
   try {
     logSync('attempting to import @tauri-apps/plugin-http...');

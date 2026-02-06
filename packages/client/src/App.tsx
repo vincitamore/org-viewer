@@ -320,7 +320,7 @@ function App() {
           { key: '2', label: 'Tasks', view: 'tasks' as View },
           { key: '3', label: 'KB', view: 'knowledge' as View },
           { key: '4', label: 'Inbox', view: 'inbox' as View },
-          { key: '5', label: '⏰', view: 'reminders' as View },
+          { key: '5', label: 'Rem', view: 'reminders' as View },
           { key: '6', label: 'Graph', view: 'graph' as View },
           { key: '7', label: '</>', view: 'code' as View },
         ].map((item) => (
